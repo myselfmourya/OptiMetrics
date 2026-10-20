@@ -1,0 +1,32 @@
+Optimizer Race: SGD vs AdaGrad vs Adam
+Dataset: sklearn digits (train=1437, test=360, features=64, classes=10)
+Network: 64 -> 32 (ReLU) -> 10 (softmax), cross-entropy loss
+Epochs: 60, Batch size: 32, Seed: 42
+------------------------------------------------------------------------------
+[SGD     ] epoch   1/60  train_loss=1.2721  test_loss=1.2854  test_acc=0.7278
+[SGD     ] epoch  10/60  train_loss=0.1936  test_loss=0.2224  test_acc=0.9389
+[SGD     ] epoch  20/60  train_loss=0.1081  test_loss=0.1521  test_acc=0.9500
+[SGD     ] epoch  30/60  train_loss=0.0780  test_loss=0.1232  test_acc=0.9583
+[SGD     ] epoch  40/60  train_loss=0.0577  test_loss=0.1166  test_acc=0.9611
+[SGD     ] epoch  50/60  train_loss=0.0458  test_loss=0.1102  test_acc=0.9611
+[SGD     ] epoch  60/60  train_loss=0.0378  test_loss=0.1005  test_acc=0.9583
+[AdaGrad ] epoch   1/60  train_loss=1.1293  test_loss=1.1598  test_acc=0.6806
+[AdaGrad ] epoch  10/60  train_loss=0.3581  test_loss=0.4548  test_acc=0.8556
+[AdaGrad ] epoch  20/60  train_loss=0.2266  test_loss=0.3438  test_acc=0.8778
+[AdaGrad ] epoch  30/60  train_loss=0.2003  test_loss=0.3336  test_acc=0.8917
+[AdaGrad ] epoch  40/60  train_loss=0.2005  test_loss=0.3456  test_acc=0.8972
+[AdaGrad ] epoch  50/60  train_loss=0.1791  test_loss=0.3432  test_acc=0.8861
+[AdaGrad ] epoch  60/60  train_loss=0.1658  test_loss=0.3250  test_acc=0.8917
+[Adam    ] epoch   1/60  train_loss=0.4603  test_loss=0.4610  test_acc=0.8861
+[Adam    ] epoch  10/60  train_loss=0.0426  test_loss=0.0969  test_acc=0.9722
+[Adam    ] epoch  20/60  train_loss=0.0137  test_loss=0.0797  test_acc=0.9778
+[Adam    ] epoch  30/60  train_loss=0.0064  test_loss=0.0830  test_acc=0.9722
+[Adam    ] epoch  40/60  train_loss=0.0035  test_loss=0.0773  test_acc=0.9722
+[Adam    ] epoch  50/60  train_loss=0.0015  test_loss=0.0825  test_acc=0.9722
+[Adam    ] epoch  60/60  train_loss=0.0010  test_loss=0.0806  test_acc=0.9722
+------------------------------------------------------------------------------
+FINAL SUMMARY
+------------------------------------------------------------------------------
+SGD      | final_train_loss=0.0378 | final_test_loss=0.1005 | final_test_acc=95.83% | epochs_to_loss<= 0.3: 6 | time=0.212s
+AdaGrad  | final_train_loss=0.1658 | final_test_loss=0.3250 | final_test_acc=89.17% | epochs_to_loss<= 0.3: 11 | time=0.249s
+Adam     | final_train_loss=0.0010 | final_test_loss=0.0806 | final_test_acc=97.22% | epochs_to_loss<= 0.3: 2 | time=0.314s

@@ -1,0 +1,1637 @@
+<meta charset="utf-8">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>OptiMetrics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+/* layout: header band -> KPI row -> two charts side by side -> architecture + table -> notes */
+:root{
+  --bg:#f4f5f7; --panel:#ffffff; --fg:#13161c; --fg-muted:#5b6270; --border:#dde1e7;
+  --accent:#6d5bff; --accent-soft:#efecff;
+  --sgd:#e0484f; --adagrad:#2f7bdb; --adam:#1fa971;
+  --ok:#1fa971; --warn:#c9881a; --bad:#e0484f;
+  --font-sans:'IBM Plex Sans',system-ui,sans-serif; --font-mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1016; --panel:#161922; --fg:#eef0f4; --fg-muted:#9aa2b1; --border:#2a2f3c;
+    --accent:#9a8bff; --accent-soft:#201c3d;
+    --sgd:#ff6b72; --adagrad:#5aa3f2; --adam:#3ecf92;
+    --ok:#3ecf92; --warn:#e0a83f; --bad:#ff6b72;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1016; --panel:#161922; --fg:#eef0f4; --fg-muted:#9aa2b1; --border:#2a2f3c;
+  --accent:#9a8bff; --accent-soft:#201c3d;
+  --sgd:#ff6b72; --adagrad:#5aa3f2; --adam:#3ecf92;
+  --ok:#3ecf92; --warn:#e0a83f; --bad:#ff6b72;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-sans);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));}
+.wrap{max-width:1180px;margin:0 auto;padding-block:28px 60px;}
+
+/* header */
+.hero{display:flex;flex-wrap:wrap;gap:20px;justify-content:space-between;align-items:flex-end;
+  border-bottom:1px solid var(--border);padding-bottom:20px;margin-bottom:24px;}
+.eyebrow{font-family:var(--font-mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0 0 8px;}
+.brand{font-family:var(--font-mono);font-weight:700;font-size:14px;color:var(--fg);margin:0 0 10px;}
+.brand span{font-weight:400;color:var(--fg-muted);margin-left:6px;}
+h1{font-size:clamp(26px,4vw,38px);margin:0 0 6px;letter-spacing:-0.01em;text-wrap:balance;}
+.sub{color:var(--fg-muted);margin:0;max-width:62ch;font-size:15px;line-height:1.55;}
+.config{font-family:var(--font-mono);font-size:12.5px;color:var(--fg-muted);background:var(--panel);
+  border:1px solid var(--border);border-radius:10px;padding:12px 16px;display:grid;gap:5px;min-width:260px;}
+.config b{color:var(--fg);font-weight:600;}
+
+/* KPI cards */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:28px;}
+.kpi{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px 20px;position:relative;overflow:hidden;}
+.kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--bar-color,var(--accent));}
+.kpi-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.kpi-name{font-weight:600;font-size:15px;}
+.badge{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+  padding:3px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);}
+.badge.win{background:color-mix(in srgb, var(--ok) 18%, transparent);color:var(--ok);}
+.kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;}
+.metric .v{font-family:var(--font-mono);font-size:19px;font-weight:600;font-variant-numeric:tabular-nums;}
+.metric .l{font-size:11px;color:var(--fg-muted);text-transform:uppercase;letter-spacing:.06em;margin-top:2px;}
+
+/* charts */
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px 18px 10px;min-width:0;overflow:hidden;}
+.panel h3{margin:0 0 2px;font-size:15px;}
+.panel p.hint{margin:0 0 10px;color:var(--fg-muted);font-size:12.5px;}
+.chart-box{position:relative;height:300px;}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin:10px 0 2px;font-size:12.5px;}
+.legend span{display:inline-flex;align-items:center;gap:6px;}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block;}
+
+.row2{display:grid;grid-template-columns:1.1fr 0.9fr;gap:16px;margin-bottom:16px;}
+@media (max-width:860px){.charts,.row2{grid-template-columns:1fr;}}
+.bar-grid{display:flex;flex-wrap:wrap;gap:14px;}
+.bar-grid>div{flex:1 1 120px;min-width:0;}
+.bar-title{font-size:12px;color:var(--fg-muted);text-align:center;margin-bottom:4px;font-family:var(--font-mono);}
+
+/* architecture diagram */
+#arch{width:100%;height:auto;display:block;}
+.arch-note{font-size:12px;color:var(--fg-muted);margin-top:8px;font-family:var(--font-mono);}
+
+/* table */
+table{width:100%;border-collapse:collapse;font-size:13.5px;}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--border);}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--fg-muted);font-weight:600;}
+td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+tr.win td{color:var(--ok);font-weight:600;}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7px;}
+
+/* controls */
+.toggle-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+.toggle{font-family:var(--font-mono);font-size:12px;border:1px solid var(--border);background:var(--bg);
+  color:var(--fg-muted);padding:6px 12px;border-radius:999px;cursor:pointer;user-select:none;transition:.15s;}
+.toggle[aria-pressed="true"]{color:#fff;border-color:transparent;}
+.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+footer{margin-top:30px;color:var(--fg-muted);font-size:12.5px;border-top:1px solid var(--border);padding-top:16px;
+  display:flex;flex-wrap:wrap;gap:8px 20px;}
+footer b{color:var(--fg);}
+
+.section-title{display:flex;align-items:baseline;gap:10px;margin:40px 0 14px;}
+.section-title .idx{font-family:var(--font-mono);font-size:12px;color:var(--accent);border:1px solid var(--accent);
+  border-radius:999px;padding:2px 9px;}
+.section-title h2{font-size:19px;margin:0;}
+.section-title p{margin:0;color:var(--fg-muted);font-size:13px;}
+
+/* live lab */
+.lab-grid{display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:stretch;}
+@media (max-width:860px){.lab-grid{grid-template-columns:1fr;}}
+.lab-right{display:flex;flex-direction:column;min-height:100%;}
+#labResults{flex:1;}
+.field{margin-bottom:14px;}
+.field label{display:flex;justify-content:space-between;font-size:12.5px;color:var(--fg-muted);margin-bottom:5px;}
+.field label b{color:var(--fg);font-weight:600;font-family:var(--font-mono);}
+.field input[type=range]{width:100%;accent-color:var(--accent);}
+.field input[type=number]{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;
+  color:var(--fg);padding:7px 9px;font-family:var(--font-mono);font-size:13px;}
+.field select{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--fg);
+  padding:8px 9px;font-family:var(--font-sans);font-size:13px;}
+.lr-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+.lr-row .mini{font-size:11px;color:var(--fg-muted);text-align:center;margin-top:3px;font-family:var(--font-mono);}
+.run-btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:12px;
+  font-weight:600;font-size:14px;cursor:pointer;font-family:var(--font-sans);transition:opacity .15s;}
+.run-btn:hover{opacity:.88;}
+.run-btn:disabled{opacity:.5;cursor:default;}
+.reset-btn{width:100%;background:transparent;color:var(--fg-muted);border:1px solid var(--border);border-radius:10px;
+  padding:9px;font-size:12.5px;cursor:pointer;margin-top:8px;font-family:var(--font-sans);}
+.status{font-family:var(--font-mono);font-size:12px;color:var(--fg-muted);margin-top:10px;min-height:16px;}
+.lab-charts-row{display:flex;flex-wrap:wrap;gap:14px;}
+.lab-charts-row>div{flex:1 1 220px;min-width:0;}
+.boundary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:18px;}
+@media (max-width:760px){.boundary-grid{grid-template-columns:1fr;}}
+.boundary-card{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px;}
+.boundary-card h4{margin:0 0 2px;font-size:13px;display:flex;align-items:center;gap:7px;}
+.boundary-card .acc{font-family:var(--font-mono);font-size:11px;color:var(--fg-muted);margin:2px 0 8px;line-height:1.7;}
+.boundary-card .acc b{color:var(--fg);font-weight:600;}
+.boundary-card canvas{width:100%;aspect-ratio:1;border-radius:8px;display:block;}
+.empty-state{border:1px dashed var(--border);border-radius:12px;padding:28px;text-align:center;color:var(--fg-muted);font-size:13.5px;
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;min-height:280px;}
+[hidden]{display:none!important;}
+
+/* top menu */
+.topbar{position:sticky;top:max(12px,env(safe-area-inset-top,0px));z-index:40;display:flex;justify-content:flex-end;
+  max-width:1180px;margin:0 auto;padding-top:10px;}
+.menu-wrap{position:relative;}
+.menu-btn{width:40px;height:40px;border-radius:10px;border:1px solid var(--border);background:var(--panel);
+  cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;}
+.menu-btn span{display:block;width:18px;height:2px;background:var(--fg);border-radius:2px;}
+.menu-btn:hover{border-color:var(--accent);}
+.menu-dropdown{position:absolute;right:0;top:46px;background:var(--panel);border:1px solid var(--border);
+  border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.25);min-width:200px;padding:6px;z-index:50;}
+.menu-item{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;color:var(--fg);
+  font-family:var(--font-sans);font-size:13.5px;text-align:left;padding:10px 12px;border-radius:8px;cursor:pointer;}
+.menu-item:hover{background:var(--bg);}
+.menu-item .ic{width:18px;text-align:center;opacity:.75;}
+
+/* modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;display:flex;align-items:center;
+  justify-content:center;padding:max(24px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(24px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:16px;max-width:680px;width:100%;
+  max-height:min(640px,calc(100vh - 48px));display:flex;flex-direction:column;
+  padding:26px 26px 0;box-shadow:0 20px 60px rgba(0,0,0,.4);}
+.modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:16px;flex:none;}
+.modal-scroll{overflow-y:auto;padding-bottom:28px;margin-right:-6px;padding-right:6px;}
+.modal-head h2{margin:0;font-size:20px;}
+.modal-close{background:var(--bg);border:1px solid var(--border);border-radius:8px;width:32px;height:32px;
+  cursor:pointer;color:var(--fg-muted);font-size:16px;flex:none;}
+.modal-close:hover{color:var(--fg);border-color:var(--accent);}
+.concept-item{border-bottom:1px solid var(--border);padding:14px 0;}
+.concept-item:last-child{border-bottom:none;}
+.concept-item h4{margin:0 0 6px;font-size:13.5px;display:flex;align-items:center;gap:8px;}
+.concept-item p{margin:0;font-size:12.5px;color:var(--fg-muted);line-height:1.6;}
+.swatch{width:12px;height:12px;border-radius:3px;display:inline-block;flex:none;}
+.qa-item{margin-bottom:18px;}
+.qa-item .q{font-weight:600;font-size:13.5px;margin-bottom:5px;}
+.qa-item .a{font-size:12.5px;color:var(--fg-muted);line-height:1.65;margin:0;}
+.empty-state .glyph{font-size:38px;opacity:.55;line-height:1;}
+.empty-state .hint2{font-size:12px;opacity:.75;max-width:40ch;}
+@media (prefers-reduced-motion:no-preference){ .kpi,.panel{transition:transform .15s ease;} .kpi:hover{transform:translateY(-2px);} }
+</style>
+
+<div class="topbar">
+  <div class="menu-wrap">
+    <button class="menu-btn" id="menuBtn" aria-haspopup="true" aria-expanded="false" aria-label="Open menu"><span></span><span></span><span></span></button>
+    <div class="menu-dropdown" id="menuDropdown" hidden>
+      <button class="menu-item" id="themeToggle"><span class="ic" id="themeIcon">&#9728;</span><span id="themeLabel">Switch to light theme</span></button>
+      <button class="menu-item" id="openHelp"><span class="ic">&#63;</span>Help — understand the dashboard</button>
+      <button class="menu-item" id="openAbout"><span class="ic">&#8505;</span>About this project</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="helpOverlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div class="modal-head">
+      <h2 id="helpTitle">Reading the dashboard</h2>
+      <button class="modal-close" id="closeHelp" aria-label="Close">&#10005;</button>
+    </div>
+    <div class="modal-scroll"><div id="helpBody"></div></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="aboutOverlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
+    <div class="modal-head">
+      <h2 id="aboutTitle">About OptiMetrics</h2>
+      <button class="modal-close" id="closeAbout" aria-label="Close">&#10005;</button>
+    </div>
+    <div class="modal-scroll"><div id="aboutBody"></div></div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div class="hero">
+    <div>
+      <p class="eyebrow">Mini Project · Deep Learning</p>
+      <p class="brand">OptiMetrics <span>— measure, race and understand how optimizers actually learn</span></p>
+      <h1>Optimizer Race: SGD vs AdaGrad vs Adam</h1>
+      <p class="sub">A from-scratch implementation comparing three gradient-based optimizers on an identical neural network — same weights at init, same batches, same epoch budget. Benchmark run below is pre-computed in NumPy; the lab further down runs live, in your browser, on your own settings.</p>
+    </div>
+    <div class="config" id="configBox">Loading run configuration…</div>
+  </div>
+
+  <div class="section-title"><span class="idx">A</span><h2>Benchmark run</h2><p>— pre-computed in NumPy on the sklearn digits dataset</p></div>
+
+  <div class="kpis" id="kpiRow"></div>
+
+  <div class="charts">
+    <div class="panel">
+      <h3>Convergence speed</h3>
+      <p class="hint">Training loss (cross-entropy) per epoch — lower and faster is better.</p>
+      <div class="toggle-row" id="toggleLoss"></div>
+      <div class="chart-box"><canvas id="lossChart"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>Generalisation</h3>
+      <p class="hint">Test-set accuracy per epoch on the held-out digits.</p>
+      <div class="toggle-row" id="toggleAcc"></div>
+      <div class="chart-box"><canvas id="accChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="row2">
+    <div class="panel">
+      <h3>Final comparison</h3>
+      <p class="hint">Metrics after the full training budget (epoch 60) — each on its own scale.</p>
+      <div class="bar-grid">
+        <div><div class="bar-title">Test accuracy (%)</div><div class="chart-box" style="height:190px"><canvas id="barAcc"></canvas></div></div>
+        <div><div class="bar-title">Final test loss</div><div class="chart-box" style="height:190px"><canvas id="barLoss"></canvas></div></div>
+        <div><div class="bar-title">Wall-clock time (s)</div><div class="chart-box" style="height:190px"><canvas id="barTime"></canvas></div></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Network under test</h3>
+      <p class="hint">Identical architecture &amp; initial weights for every optimizer.</p>
+      <svg id="arch" viewBox="0 0 420 215" role="img" aria-label="64 input, 32 hidden ReLU, 10 output softmax network"></svg>
+      <div class="arch-note">64 → 32 (ReLU) → 10 (softmax) · cross-entropy loss</div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px;">
+    <h3>Results table</h3>
+    <p class="hint">Winner per column highlighted.</p>
+    <div style="overflow-x:auto;">
+      <table id="resultsTable"></table>
+    </div>
+  </div>
+
+  <div class="section-title"><span class="idx">B</span><h2>Live lab</h2><p>— trains all three optimizers in your browser, on your settings, right now</p></div>
+
+  <div class="panel lab-panel">
+    <div class="lab-grid">
+      <div>
+        <div class="field">
+          <label>Dataset</label>
+          <select id="labDataset">
+            <option value="linear">Linearly separable — convex case (Unit II, 2.1)</option>
+            <option value="xor">XOR problem — Unit I, Learning XOR</option>
+            <option value="moons" selected>Two moons — non-convex (Unit II, 2.2)</option>
+            <option value="spiral">3-arm spiral — hardest non-convex (Unit II, 2.2)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Learning rates</label>
+          <div class="lr-row">
+            <div><input type="number" id="lrSGD" value="0.6" step="0.05" min="0.001"><div class="mini">SGD</div></div>
+            <div><input type="number" id="lrAdaGrad" value="0.8" step="0.05" min="0.001"><div class="mini">AdaGrad</div></div>
+            <div><input type="number" id="lrAdam" value="0.05" step="0.01" min="0.0001"><div class="mini">Adam</div></div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Epochs <b id="epochsVal">120</b></label>
+          <input type="range" id="labEpochs" min="10" max="300" step="10" value="120">
+        </div>
+        <div class="field">
+          <label>Batch size <b id="batchVal">16</b></label>
+          <input type="range" id="labBatch" min="4" max="64" step="4" value="16">
+        </div>
+        <div class="field">
+          <label>Hidden units <b id="hiddenVal">16</b></label>
+          <input type="range" id="labHidden" min="4" max="48" step="4" value="16">
+        </div>
+        <div class="field">
+          <label>Random seed</label>
+          <input type="number" id="labSeed" value="7" step="1">
+        </div>
+        <button class="run-btn" id="runBtn">▶ Run race</button>
+        <button class="reset-btn" id="resetBtn">Reset to defaults</button>
+        <div class="status" id="labStatus">Set your parameters, then run.</div>
+      </div>
+
+      <div class="lab-right">
+        <div id="labEmpty" class="empty-state">
+          <div class="glyph">◆ ◆ ◆</div>
+          <div>No run yet — press <b style="color:var(--fg)">Run race</b> to train SGD, AdaGrad and Adam from scratch on the dataset above, live, in this tab.</div>
+          <div class="hint2">Each optimizer gets the same random weights, the same batches and the same epoch budget — only the update rule differs.</div>
+        </div>
+        <div id="labResults" hidden>
+          <div class="lab-charts-row">
+            <div><div class="bar-title">Training loss</div><div class="chart-box" style="height:220px"><canvas id="labLossChart"></canvas></div></div>
+            <div><div class="bar-title">Test accuracy</div><div class="chart-box" style="height:220px"><canvas id="labAccChart"></canvas></div></div>
+          </div>
+          <div class="boundary-grid" id="boundaryGrid"></div>
+          <div style="overflow-x:auto;margin-top:16px;"><table id="labResultsTable"></table></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer id="footer"></footer>
+</div>
+
+<script>
+const DATA = {
+  "config": {
+    "dataset": "sklearn digits",
+    "train_size": 1437,
+    "test_size": 360,
+    "features": 64,
+    "classes": 10,
+    "architecture": "64 -> 32 (ReLU) -> 10 (softmax)",
+    "epochs": 60,
+    "batch_size": 32,
+    "seed": 42,
+    "threshold": 0.3
+  },
+  "optimizers": {
+    "SGD": {
+      "train_losses": [
+        1.2721303896206189,
+        0.7556572829744188,
+        0.49659383214473435,
+        0.38991363159607784,
+        0.3234981181936548,
+        0.27571265590608307,
+        0.24669297078422747,
+        0.21672743385681215,
+        0.19873303813056722,
+        0.1936132511415263,
+        0.17736441411880088,
+        0.16466613834108404,
+        0.14951431475628113,
+        0.14301684146508054,
+        0.14029484147436966,
+        0.13152264432618097,
+        0.12252760460203349,
+        0.11878480984339262,
+        0.11205048356723506,
+        0.10812490709731173,
+        0.10444636755745317,
+        0.10311829400943835,
+        0.10220241934704191,
+        0.0948681640624978,
+        0.091952000351403,
+        0.08757074617139972,
+        0.08610010030868682,
+        0.0831946544507226,
+        0.08076006857957141,
+        0.07800514269421066,
+        0.07526217117593963,
+        0.07185192001163711,
+        0.07005207151096114,
+        0.06923439025236496,
+        0.066429037085299,
+        0.06483965196664954,
+        0.06491762273985333,
+        0.06138956985119664,
+        0.060481342184655056,
+        0.05772993193412259,
+        0.05922732492597859,
+        0.05509125855938238,
+        0.05497692324536334,
+        0.05594575722815671,
+        0.05275979910430698,
+        0.0508262085602951,
+        0.05057819095497499,
+        0.0475014613062907,
+        0.049703911262588794,
+        0.04580290674679682,
+        0.04780450712209586,
+        0.04451347045593753,
+        0.0454399473872039,
+        0.04402702231145898,
+        0.0429741588740114,
+        0.04681743100824447,
+        0.0403766143034378,
+        0.04009065897975108,
+        0.03764723252248678,
+        0.03778500869068602
+      ],
+      "test_losses": [
+        1.2853959572334206,
+        0.7583029225459276,
+        0.5052909566897129,
+        0.3978867940003659,
+        0.33498233495837204,
+        0.29589890661173746,
+        0.27187401151332746,
+        0.24496395617620645,
+        0.22830263866518696,
+        0.2224427954114426,
+        0.19695299232337146,
+        0.20052356114159803,
+        0.17928115977196243,
+        0.17559261442342272,
+        0.18722554209144518,
+        0.16406609590872737,
+        0.16244586024491628,
+        0.15300616405765113,
+        0.15062267251788722,
+        0.15208330898372274,
+        0.15307539504677312,
+        0.14973790353124097,
+        0.14671082639412314,
+        0.1413318548920133,
+        0.14489080264417561,
+        0.1306721914744753,
+        0.13102617785934484,
+        0.12477702568770851,
+        0.1348148644512118,
+        0.12322024524701378,
+        0.1282111822661931,
+        0.12755216468950176,
+        0.12384839797295123,
+        0.12064919760660203,
+        0.12463432837180922,
+        0.12280293655727258,
+        0.12133749618165236,
+        0.11960527889429672,
+        0.11814415259399136,
+        0.11656299161247094,
+        0.12255075393497149,
+        0.11187556562388513,
+        0.11573417797678856,
+        0.11344527984977368,
+        0.11174819438102311,
+        0.11568034571331715,
+        0.11163975671787811,
+        0.10737961446252273,
+        0.11351300300694488,
+        0.11023376197430797,
+        0.10901956903700996,
+        0.10497612514774249,
+        0.11042869387576235,
+        0.11293510358455096,
+        0.10692367454118745,
+        0.10989191170490978,
+        0.10771374406246952,
+        0.10382511745808942,
+        0.10161989730058842,
+        0.10053887519558151
+      ],
+      "test_accs": [
+        0.7277777777777777,
+        0.8555555555555555,
+        0.9166666666666666,
+        0.9194444444444444,
+        0.9222222222222223,
+        0.925,
+        0.9277777777777778,
+        0.9333333333333333,
+        0.9305555555555556,
+        0.9388888888888889,
+        0.9416666666666667,
+        0.9361111111111111,
+        0.9416666666666667,
+        0.9444444444444444,
+        0.9277777777777778,
+        0.9472222222222222,
+        0.9416666666666667,
+        0.9527777777777777,
+        0.9472222222222222,
+        0.95,
+        0.9472222222222222,
+        0.95,
+        0.95,
+        0.95,
+        0.9472222222222222,
+        0.9527777777777777,
+        0.9555555555555556,
+        0.9583333333333334,
+        0.9527777777777777,
+        0.9583333333333334,
+        0.9583333333333334,
+        0.9583333333333334,
+        0.9611111111111111,
+        0.9583333333333334,
+        0.9583333333333334,
+        0.9583333333333334,
+        0.9583333333333334,
+        0.9583333333333334,
+        0.9694444444444444,
+        0.9611111111111111,
+        0.9666666666666667,
+        0.9583333333333334,
+        0.9638888888888889,
+        0.9611111111111111,
+        0.9611111111111111,
+        0.9611111111111111,
+        0.9666666666666667,
+        0.9638888888888889,
+        0.9638888888888889,
+        0.9611111111111111,
+        0.9694444444444444,
+        0.9638888888888889,
+        0.9611111111111111,
+        0.9611111111111111,
+        0.9611111111111111,
+        0.9666666666666667,
+        0.9611111111111111,
+        0.9638888888888889,
+        0.9638888888888889,
+        0.9583333333333334
+      ],
+      "final_train_loss": 0.03778500869068602,
+      "final_test_loss": 0.10053887519558151,
+      "final_test_acc": 0.9583333333333334,
+      "time_sec": 0.21193790435791016,
+      "epochs_to_threshold": 6
+    },
+    "AdaGrad": {
+      "train_losses": [
+        1.1292785196482327,
+        0.6117180421395235,
+        0.4895911410530391,
+        0.453596969878882,
+        0.4142247872579082,
+        0.3464472802822594,
+        0.3923452730884632,
+        0.3206385015626519,
+        0.35585485803419237,
+        0.3580889888117117,
+        0.28839663614595423,
+        0.2649745603103883,
+        0.2981088056981806,
+        0.25847616552951946,
+        0.26093373465924546,
+        0.25593107318334235,
+        0.2406510705351351,
+        0.2419567218174658,
+        0.24311644924163534,
+        0.22655058098720915,
+        0.23242572873966527,
+        0.22412992286415115,
+        0.2287444662050458,
+        0.21616957622548028,
+        0.2155344461030471,
+        0.20469370650634758,
+        0.22395718460109149,
+        0.21086908053668227,
+        0.20827178788848033,
+        0.20031169277156385,
+        0.19540286047829578,
+        0.19345834660531316,
+        0.19861024316449086,
+        0.1964634101629387,
+        0.18698681519926397,
+        0.18948100974099502,
+        0.18691065442046947,
+        0.18510081669297673,
+        0.18532585981964642,
+        0.20046269901204627,
+        0.19035465281803643,
+        0.18282292748783474,
+        0.18678233440771555,
+        0.1810686234518213,
+        0.1769366379921775,
+        0.1935400116073793,
+        0.17709917648546478,
+        0.1748362283417567,
+        0.17771354471529321,
+        0.17910660783521087,
+        0.17837881964372457,
+        0.17723135605409096,
+        0.1721661605288317,
+        0.17491929340457155,
+        0.19065221049580683,
+        0.1730798535898718,
+        0.16737679334765543,
+        0.16848686764296705,
+        0.1682527604460992,
+        0.16582155247816274
+      ],
+      "test_losses": [
+        1.1597764698053261,
+        0.6654536131907208,
+        0.5675975213022245,
+        0.5069655739576001,
+        0.4717257133647092,
+        0.4256803443354074,
+        0.4574980565586985,
+        0.4054166441542282,
+        0.468038084310268,
+        0.4548349438093534,
+        0.34982721718702536,
+        0.3633372937630212,
+        0.38470051708589165,
+        0.36043610084241046,
+        0.3907390724442369,
+        0.3573194884948066,
+        0.3519869874237594,
+        0.34790769510144687,
+        0.3541639658768811,
+        0.3438254817956034,
+        0.3612193103690958,
+        0.3527067496061025,
+        0.3461318513252038,
+        0.3448223547594644,
+        0.35461856536134206,
+        0.32586849699781745,
+        0.3420922398613599,
+        0.3316417687705386,
+        0.3395937104970392,
+        0.3336035864732263,
+        0.3328596594133842,
+        0.3323473803628059,
+        0.34457968783868725,
+        0.3332140953495461,
+        0.32662805415022594,
+        0.3318271995636804,
+        0.32445289526242416,
+        0.3233889388986352,
+        0.33635215807013064,
+        0.3456334977763685,
+        0.3387508650568411,
+        0.32067035254569004,
+        0.3370168684366079,
+        0.3288567229197942,
+        0.3270819993043606,
+        0.3580285148301901,
+        0.3287747174177845,
+        0.33339827989708315,
+        0.3369394437587301,
+        0.34324567010932266,
+        0.3280133698818626,
+        0.33441950607718696,
+        0.3349683742191995,
+        0.3346493231893803,
+        0.33645020633370853,
+        0.3378172330612093,
+        0.32701172085864616,
+        0.33646684597567617,
+        0.32834219829803707,
+        0.32495653226802623
+      ],
+      "test_accs": [
+        0.6805555555555556,
+        0.8,
+        0.8333333333333334,
+        0.8277777777777777,
+        0.8361111111111111,
+        0.85,
+        0.8472222222222222,
+        0.875,
+        0.8555555555555555,
+        0.8555555555555555,
+        0.8861111111111111,
+        0.8777777777777778,
+        0.8805555555555555,
+        0.875,
+        0.8805555555555555,
+        0.8833333333333333,
+        0.8833333333333333,
+        0.8861111111111111,
+        0.8861111111111111,
+        0.8777777777777778,
+        0.8861111111111111,
+        0.8888888888888888,
+        0.8916666666666667,
+        0.8777777777777778,
+        0.8944444444444445,
+        0.8916666666666667,
+        0.8888888888888888,
+        0.8888888888888888,
+        0.8861111111111111,
+        0.8916666666666667,
+        0.8916666666666667,
+        0.8944444444444445,
+        0.8777777777777778,
+        0.8944444444444445,
+        0.9,
+        0.8944444444444445,
+        0.8916666666666667,
+        0.8916666666666667,
+        0.8888888888888888,
+        0.8972222222222223,
+        0.8944444444444445,
+        0.8861111111111111,
+        0.8944444444444445,
+        0.8972222222222223,
+        0.8944444444444445,
+        0.8833333333333333,
+        0.8972222222222223,
+        0.8916666666666667,
+        0.8944444444444445,
+        0.8861111111111111,
+        0.8972222222222223,
+        0.8944444444444445,
+        0.8944444444444445,
+        0.8972222222222223,
+        0.8861111111111111,
+        0.8916666666666667,
+        0.8916666666666667,
+        0.8972222222222223,
+        0.8888888888888888,
+        0.8916666666666667
+      ],
+      "final_train_loss": 0.16582155247816274,
+      "final_test_loss": 0.32495653226802623,
+      "final_test_acc": 0.8916666666666667,
+      "time_sec": 0.24857425689697266,
+      "epochs_to_threshold": 11
+    },
+    "Adam": {
+      "train_losses": [
+        0.4602936207125368,
+        0.23393398614095728,
+        0.17693161047047953,
+        0.1292260308460424,
+        0.12056976722354845,
+        0.08663052783178968,
+        0.07413329491104165,
+        0.06186030072157266,
+        0.05112411737254041,
+        0.04255116379615486,
+        0.04614506155802125,
+        0.0375180479586802,
+        0.04226672589525533,
+        0.022197297752045198,
+        0.020514634830328695,
+        0.03665865497350933,
+        0.023540404350414407,
+        0.015732850046164527,
+        0.018713554907298112,
+        0.013688525481300206,
+        0.01127416924068071,
+        0.01346646398552077,
+        0.009922985193728515,
+        0.014625798171627062,
+        0.016017412856124475,
+        0.011896936739224758,
+        0.0076169821660022445,
+        0.006752525119829618,
+        0.005671603473882708,
+        0.00643102885596758,
+        0.004646837943709768,
+        0.0063183358116571655,
+        0.004235147905671533,
+        0.0038065409559090405,
+        0.0036120741020904752,
+        0.0037642662529898956,
+        0.003054115205215885,
+        0.002900801844658202,
+        0.0028087639844764263,
+        0.0034992632200343972,
+        0.0024166844695647388,
+        0.0028084746432662133,
+        0.0030936439878091115,
+        0.0022683965894376274,
+        0.002756053603659655,
+        0.0020984668393121296,
+        0.0017397859979492484,
+        0.0016930827160776788,
+        0.0018291040163889156,
+        0.0015205494123228368,
+        0.001479387033411711,
+        0.0016563664330902432,
+        0.0014534494207832439,
+        0.0013039050954922332,
+        0.0012963869347179528,
+        0.0014353647596038618,
+        0.0012078588629121471,
+        0.0011423157042800968,
+        0.001023664152695333,
+        0.0009845457494268312
+      ],
+      "test_losses": [
+        0.4609766522199907,
+        0.24323232125581729,
+        0.18079151764399398,
+        0.151789174170225,
+        0.16002035369743534,
+        0.13075520134850058,
+        0.11915506047941467,
+        0.10059936438059024,
+        0.10530979980315955,
+        0.09693328173885528,
+        0.083082974663224,
+        0.09112443005193852,
+        0.10008006786128802,
+        0.08226910463387559,
+        0.07505315422625825,
+        0.10629309396122082,
+        0.09406333474921946,
+        0.08191263557817333,
+        0.09014724672792475,
+        0.07974879219498679,
+        0.07376878329612556,
+        0.08431101143850216,
+        0.06705645368017744,
+        0.07742306062255151,
+        0.0875865677813489,
+        0.08627786875512353,
+        0.07813246662641017,
+        0.08138559222576604,
+        0.07169263846860605,
+        0.08299333398438734,
+        0.07309588059936502,
+        0.07633646228421483,
+        0.07547104583591759,
+        0.07566223630717514,
+        0.0713447960947861,
+        0.07582560604249135,
+        0.07332164864590923,
+        0.07617808588736218,
+        0.07614679783950379,
+        0.07731268517299167,
+        0.07259816164541635,
+        0.07610340901293197,
+        0.07943359148845622,
+        0.07941290184864401,
+        0.08872655532221148,
+        0.0738271147608452,
+        0.08264405883177273,
+        0.07607889718850194,
+        0.08125193031197134,
+        0.08250855186034808,
+        0.08025733679797611,
+        0.07370276721108264,
+        0.08222732207716431,
+        0.07912206857284551,
+        0.08271137481787402,
+        0.08456785260499398,
+        0.08846236553734525,
+        0.08808094062845732,
+        0.0836915115750637,
+        0.08055596558328737
+      ],
+      "test_accs": [
+        0.8861111111111111,
+        0.9388888888888889,
+        0.95,
+        0.9472222222222222,
+        0.9333333333333333,
+        0.9583333333333334,
+        0.9638888888888889,
+        0.9638888888888889,
+        0.9638888888888889,
+        0.9722222222222222,
+        0.9805555555555555,
+        0.9694444444444444,
+        0.9638888888888889,
+        0.9722222222222222,
+        0.9805555555555555,
+        0.9666666666666667,
+        0.9722222222222222,
+        0.9722222222222222,
+        0.9638888888888889,
+        0.9777777777777777,
+        0.9777777777777777,
+        0.9722222222222222,
+        0.9861111111111112,
+        0.9694444444444444,
+        0.975,
+        0.9694444444444444,
+        0.9777777777777777,
+        0.975,
+        0.975,
+        0.9722222222222222,
+        0.9805555555555555,
+        0.9777777777777777,
+        0.9722222222222222,
+        0.9777777777777777,
+        0.9805555555555555,
+        0.975,
+        0.9777777777777777,
+        0.975,
+        0.9722222222222222,
+        0.9722222222222222,
+        0.9777777777777777,
+        0.975,
+        0.9777777777777777,
+        0.9777777777777777,
+        0.975,
+        0.975,
+        0.9722222222222222,
+        0.975,
+        0.9777777777777777,
+        0.9722222222222222,
+        0.9722222222222222,
+        0.9777777777777777,
+        0.975,
+        0.975,
+        0.9722222222222222,
+        0.9777777777777777,
+        0.9694444444444444,
+        0.9694444444444444,
+        0.9722222222222222,
+        0.9722222222222222
+      ],
+      "final_train_loss": 0.0009845457494268312,
+      "final_test_loss": 0.08055596558328737,
+      "final_test_acc": 0.9722222222222222,
+      "time_sec": 0.31436586380004883,
+      "epochs_to_threshold": 2
+    }
+  }
+};
+
+const COLORS = { SGD: 'var(--sgd)', AdaGrad: 'var(--adagrad)', Adam: 'var(--adam)' };
+const HEX = {}; // resolved at runtime from CSS custom props
+function resolveColor(name){
+  const v = getComputedStyle(document.documentElement).getPropertyValue(COLORS[name].match(/--[\w-]+/)[0]).trim();
+  return v || '#888';
+}
+
+function fmtPct(x){ return (x*100).toFixed(2) + '%'; }
+function fmtLoss(x){ return x < 0.01 ? x.toExponential(2) : x.toFixed(4); }
+
+function buildConfig(){
+  const c = DATA.config;
+  document.getElementById('configBox').innerHTML = `
+    <div><b>Dataset</b> &nbsp;${c.dataset} (${c.train_size} train / ${c.test_size} test)</div>
+    <div><b>Network</b> &nbsp;${c.architecture}</div>
+    <div><b>Epochs</b> &nbsp;${c.epochs} &nbsp;·&nbsp; <b>Batch</b> &nbsp;${c.batch_size} &nbsp;·&nbsp; <b>Seed</b> &nbsp;${c.seed}</div>
+  `;
+}
+
+function buildKPIs(){
+  const names = Object.keys(DATA.optimizers);
+  const best = names.reduce((a,b)=> DATA.optimizers[a].final_test_acc >= DATA.optimizers[b].final_test_acc ? a : b);
+  const row = document.getElementById('kpiRow');
+  row.innerHTML = names.map(name=>{
+    const o = DATA.optimizers[name];
+    const isWin = name === best;
+    return `<div class="kpi" style="--bar-color:${COLORS[name]}">
+      <div class="kpi-head">
+        <span class="kpi-name">${name}</span>
+        <span class="badge ${isWin?'win':''}">${isWin ? '★ Best accuracy' : (name==='SGD' ? 'Baseline' : 'Adaptive LR')}</span>
+      </div>
+      <div class="kpi-grid">
+        <div class="metric"><div class="v">${fmtPct(o.final_test_acc)}</div><div class="l">Test accuracy</div></div>
+        <div class="metric"><div class="v">${fmtLoss(o.final_train_loss)}</div><div class="l">Final train loss</div></div>
+        <div class="metric"><div class="v">${o.epochs_to_threshold ?? '—'}</div><div class="l">Epochs to loss ≤ ${DATA.config.threshold}</div></div>
+        <div class="metric"><div class="v">${o.time_sec.toFixed(2)}s</div><div class="l">Wall-clock time</div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function makeToggles(container, names, onChange){
+  container.innerHTML = names.map(n=>`<button class="toggle" data-name="${n}" aria-pressed="true" style="background:${COLORS[n]};border-color:${COLORS[n]}">${n}</button>`).join('');
+  container.querySelectorAll('.toggle').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const pressed = btn.getAttribute('aria-pressed') === 'true';
+      btn.setAttribute('aria-pressed', String(!pressed));
+      btn.style.background = !pressed ? btn.dataset.name && COLORS[btn.dataset.name] : 'transparent';
+      btn.style.color = !pressed ? '#fff' : getComputedStyle(document.documentElement).getPropertyValue('--fg-muted');
+      onChange();
+    });
+  });
+}
+
+function activeNames(container){
+  return [...container.querySelectorAll('.toggle')].filter(b=>b.getAttribute('aria-pressed')==='true').map(b=>b.dataset.name);
+}
+
+let lossChart, accChart, barChart;
+
+function buildLossChart(){
+  const names = Object.keys(DATA.optimizers);
+  const toggleEl = document.getElementById('toggleLoss');
+  makeToggles(toggleEl, names, refreshLoss);
+  const ctx = document.getElementById('lossChart');
+  lossChart = new Chart(ctx, {
+    type:'line',
+    data:{ labels: Array.from({length:DATA.config.epochs},(_,i)=>i+1),
+      datasets: names.map(n=>({ label:n, data: DATA.optimizers[n].train_losses,
+        borderColor: resolveColor(n), backgroundColor:'transparent', borderWidth:2.3, pointRadius:0, tension:.15 })) },
+    options: chartOpts('Epoch','Training loss')
+  });
+}
+function refreshLoss(){
+  const active = new Set(activeNames(document.getElementById('toggleLoss')));
+  lossChart.data.datasets.forEach(d=>{ d.hidden = !active.has(d.label); });
+  lossChart.update();
+}
+
+function buildAccChart(){
+  const names = Object.keys(DATA.optimizers);
+  const toggleEl = document.getElementById('toggleAcc');
+  makeToggles(toggleEl, names, refreshAcc);
+  const ctx = document.getElementById('accChart');
+  accChart = new Chart(ctx, {
+    type:'line',
+    data:{ labels: Array.from({length:DATA.config.epochs},(_,i)=>i+1),
+      datasets: names.map(n=>({ label:n, data: DATA.optimizers[n].test_accs.map(v=>v*100),
+        borderColor: resolveColor(n), backgroundColor:'transparent', borderWidth:2.3, pointRadius:0, tension:.15 })) },
+    options: chartOpts('Epoch','Test accuracy (%)')
+  });
+}
+function refreshAcc(){
+  const active = new Set(activeNames(document.getElementById('toggleAcc')));
+  accChart.data.datasets.forEach(d=>{ d.hidden = !active.has(d.label); });
+  accChart.update();
+}
+
+function chartOpts(xLabel, yLabel){
+  const grid = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
+  const fg = getComputedStyle(document.documentElement).getPropertyValue('--fg-muted').trim();
+  return {
+    responsive:true, maintainAspectRatio:false,
+    interaction:{mode:'index', intersect:false},
+    plugins:{ legend:{display:false}, tooltip:{
+      backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--panel').trim(),
+      titleColor: getComputedStyle(document.documentElement).getPropertyValue('--fg').trim(),
+      bodyColor: getComputedStyle(document.documentElement).getPropertyValue('--fg').trim(),
+      borderColor: grid, borderWidth:1, padding:10,
+    }},
+    scales:{
+      x:{ title:{display:true,text:xLabel,color:fg,font:{family:'IBM Plex Mono',size:11}}, grid:{color:grid}, ticks:{color:fg,font:{size:10}} },
+      y:{ title:{display:true,text:yLabel,color:fg,font:{family:'IBM Plex Mono',size:11}}, grid:{color:grid}, ticks:{color:fg,font:{size:10}} }
+    }
+  };
+}
+
+let barAcc, barLoss, barTime;
+function miniBar(canvasId, values, names, valueFmt, suggestedMax){
+  const grid = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
+  const fg = getComputedStyle(document.documentElement).getPropertyValue('--fg-muted').trim();
+  return new Chart(document.getElementById(canvasId), {
+    type:'bar',
+    data:{ labels: names, datasets:[{ data: values, backgroundColor: names.map(resolveColor), borderRadius:6, maxBarThickness:46 }] },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false},
+        tooltip:{ callbacks:{ label: ctx => valueFmt(ctx.raw) },
+          backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--panel').trim(),
+          titleColor: fg, bodyColor: getComputedStyle(document.documentElement).getPropertyValue('--fg').trim(),
+          borderColor: grid, borderWidth:1 } },
+      scales:{ x:{grid:{display:false}, ticks:{color:fg, font:{family:'IBM Plex Mono',size:11}}},
+        y:{ grid:{color:grid}, ticks:{color:fg,font:{size:10}}, suggestedMax, beginAtZero:true } } }
+  });
+}
+function buildBarChart(){
+  const names = Object.keys(DATA.optimizers);
+  const o = n => DATA.optimizers[n];
+  barAcc = miniBar('barAcc', names.map(n=>o(n).final_test_acc*100), names, v=>v.toFixed(2)+'%', 100);
+  barLoss = miniBar('barLoss', names.map(n=>o(n).final_test_loss), names, v=>v.toFixed(4));
+  barTime = miniBar('barTime', names.map(n=>o(n).time_sec), names, v=>v.toFixed(3)+'s');
+}
+
+function buildArch(){
+  const svg = document.getElementById('arch');
+  const fg = getComputedStyle(document.documentElement).getPropertyValue('--fg').trim();
+  const fgm = getComputedStyle(document.documentElement).getPropertyValue('--fg-muted').trim();
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+  const layers = [ {x:60, n:8, label:'Input', sub:'64 units'}, {x:210, n:7, label:'Hidden', sub:'32 · ReLU'}, {x:360, n:5, label:'Output', sub:'10 · Softmax'} ];
+  const topY = 26, botY = 150; // node band, well clear of the labels below
+  const ys = n => n===1 ? [ (topY+botY)/2 ] : Array.from({length:n}, (_,i)=> topY + i*((botY-topY)/(n-1)));
+  let lines = '', nodes = '';
+  for(let l=0; l<layers.length-1; l++){
+    const a = ys(layers[l].n), b = ys(layers[l+1].n);
+    a.forEach(y1=> b.forEach(y2=>{
+      lines += `<line x1="${layers[l].x}" y1="${y1}" x2="${layers[l+1].x}" y2="${y2}" stroke="${accent}" stroke-opacity="0.16" stroke-width="1"/>`;
+    }));
+  }
+  layers.forEach(layer=>{
+    ys(layer.n).forEach(y=>{
+      nodes += `<circle cx="${layer.x}" cy="${y}" r="6" fill="${accent}" fill-opacity="0.85"/>`;
+    });
+    nodes += `<text x="${layer.x}" y="182" text-anchor="middle" font-family="IBM Plex Mono" font-weight="600" font-size="12" fill="${fg}">${layer.label}</text>`;
+    nodes += `<text x="${layer.x}" y="200" text-anchor="middle" font-family="IBM Plex Mono" font-size="10.5" fill="${fgm}">${layer.sub}</text>`;
+  });
+  svg.innerHTML = lines + nodes;
+}
+
+function buildTable(){
+  const names = Object.keys(DATA.optimizers);
+  const cols = [
+    {k:'final_test_acc', label:'Test accuracy', fmt:fmtPct, max:true},
+    {k:'final_test_loss', label:'Test loss', fmt:fmtLoss, max:false},
+    {k:'final_train_loss', label:'Train loss', fmt:fmtLoss, max:false},
+    {k:'epochs_to_threshold', label:`Epochs to ≤${DATA.config.threshold}`, fmt:v=>v??'—', max:false},
+    {k:'time_sec', label:'Time (s)', fmt:v=>v.toFixed(3), max:false},
+  ];
+  const bestPer = {};
+  cols.forEach(c=>{
+    const vals = names.map(n=>DATA.optimizers[n][c.k]);
+    bestPer[c.k] = c.max ? names[vals.indexOf(Math.max(...vals))] : names[vals.indexOf(Math.min(...vals))];
+  });
+  const thead = `<thead><tr><th>Optimizer</th>${cols.map(c=>`<th class="num">${c.label}</th>`).join('')}</tr></thead>`;
+  const rows = names.map(n=>{
+    const o = DATA.optimizers[n];
+    return `<tr><td><span class="dot" style="background:${COLORS[n]}"></span>${n}</td>${
+      cols.map(c=>`<td class="num ${bestPer[c.k]===n?'win':''}">${c.fmt(o[c.k])}</td>`).join('')
+    }</tr>`;
+  }).join('');
+  document.getElementById('resultsTable').innerHTML = thead + `<tbody>${rows}</tbody>`;
+}
+
+function buildFooter(){
+  document.getElementById('footer').innerHTML = `
+    <span><b>Loss function</b> — Cross-entropy</span>
+    <span><b>SGD lr</b> — 0.1 (fixed)</span>
+    <span><b>AdaGrad lr</b> — 0.3 (fixed, accumulated-gradient scaled)</span>
+    <span><b>Adam lr</b> — 0.01 (β₁=0.9, β₂=0.999)</span>
+    <span><b>Convergence threshold</b> — train loss ≤ ${DATA.config.threshold}</span>
+  `;
+}
+
+function rebuildAll(){
+  buildConfig(); buildKPIs();
+  if(lossChart) lossChart.destroy();
+  if(accChart) accChart.destroy();
+  if(barAcc) barAcc.destroy();
+  if(barLoss) barLoss.destroy();
+  if(barTime) barTime.destroy();
+  buildLossChart(); buildAccChart(); buildBarChart();
+  buildArch(); buildTable(); buildFooter();
+}
+
+rebuildAll();
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rebuildAll);
+</script>
+
+<script>
+/* ===================== Live Lab: trains SGD / AdaGrad / Adam in-browser ===================== */
+(function(){
+  // ---- seeded RNG (mulberry32) + gaussian ----
+  function mulberry32(seed){
+    let a = seed >>> 0;
+    return function(){
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function gaussian(rng){
+    let u=0,v=0; while(u===0) u=rng(); while(v===0) v=rng();
+    return Math.sqrt(-2*Math.log(u)) * Math.cos(2*Math.PI*v);
+  }
+
+  // ---- datasets: each returns {X:[[x,y],...], y:[classIdx,...], classes:n} ----
+  // Each dataset below corresponds directly to a named example or concept in the
+  // 24AM501 Deep Learning syllabus: "linear" is the convex case discussed in Unit II
+  // (2.1, How Learning Differs from Pure Optimization); "xor" is the Learning XOR
+  // example from Unit I; "moons" and "spiral" are non-convex cases that make the
+  // Unit II, 2.2 Challenges in Neural Network Optimization (local minima, saddle
+  // points, ill-conditioning) concretely visible as a decision boundary.
+  function dsLinear(rng){
+    const X=[], y=[], n=220;
+    for(let i=0;i<n;i++){
+      const x = (rng()*2-1)*2.6, yy = (rng()*2-1)*2.6;
+      X.push([x+gaussian(rng)*0.15, yy+gaussian(rng)*0.15]);
+      y.push((yy > 0.5*x) ? 1 : 0);
+    }
+    return {X,y,classes:2};
+  }
+  function dsXOR(rng){
+    const X=[], y=[], n=240;
+    for(let i=0;i<n;i++){
+      const x = (rng()*2-1)*2.4, yy = (rng()*2-1)*2.4;
+      X.push([x+gaussian(rng)*0.12, yy+gaussian(rng)*0.12]);
+      y.push((x>0) !== (yy>0) ? 1 : 0);
+    }
+    return {X,y,classes:2};
+  }
+  function dsMoons(rng){
+    const X=[], y=[], n=110;
+    for(let i=0;i<n;i++){
+      const t = Math.PI * i/n;
+      X.push([Math.cos(t)+gaussian(rng)*0.1, Math.sin(t)+gaussian(rng)*0.1]); y.push(0);
+    }
+    for(let i=0;i<n;i++){
+      const t = Math.PI * i/n;
+      X.push([1-Math.cos(t)+gaussian(rng)*0.1, 1-Math.sin(t)-0.5+gaussian(rng)*0.1]); y.push(1);
+    }
+    return {X,y,classes:2};
+  }
+  function dsSpiral(rng){
+    const X=[], y=[], classes=3, perClass=90;
+    for(let ci=0; ci<classes; ci++){
+      for(let i=0;i<perClass;i++){
+        const r = i/perClass;
+        const t = ci*(2*Math.PI/classes) + r*3.2 + gaussian(rng)*0.18;
+        X.push([r*Math.sin(t)*2.6, r*Math.cos(t)*2.6]);
+        y.push(ci);
+      }
+    }
+    return {X,y,classes};
+  }
+  function oneHot(y, k){ return y.map(c=>{ const v=new Array(k).fill(0); v[c]=1; return v; }); }
+
+  function shuffleSplit(X, y, rng, testFrac=0.25){
+    const idx = X.map((_,i)=>i);
+    for(let i=idx.length-1;i>0;i--){ const j=Math.floor(rng()*(i+1)); [idx[i],idx[j]]=[idx[j],idx[i]]; }
+    const nTest = Math.round(X.length*testFrac);
+    const testIdx = idx.slice(0,nTest), trainIdx = idx.slice(nTest);
+    const pick = (arr,ix)=> ix.map(i=>arr[i]);
+    return { Xtr:pick(X,trainIdx), ytr:pick(y,trainIdx), Xte:pick(X,testIdx), yte:pick(y,testIdx) };
+  }
+
+  // ---- tiny linear algebra on plain arrays ----
+  function zeros(r,c){ return Array.from({length:r},()=>new Array(c).fill(0)); }
+  function matmul(A,B){ // A: n x k, B: k x m -> n x m
+    const n=A.length, k=B.length, m=B[0].length;
+    const out = zeros(n,m);
+    for(let i=0;i<n;i++) for(let p=0;p<k;p++){ const a=A[i][p]; if(a===0) continue;
+      for(let j=0;j<m;j++) out[i][j] += a*B[p][j]; }
+    return out;
+  }
+  function addBias(A,b){ return A.map(row=>row.map((v,j)=>v+b[j])); }
+  function relu(A){ return A.map(row=>row.map(v=>Math.max(0,v))); }
+  function reluGrad(A){ return A.map(row=>row.map(v=>v>0?1:0)); }
+  function softmaxRows(A){ return A.map(row=>{ const m=Math.max(...row); const ex=row.map(v=>Math.exp(v-m));
+    const s=ex.reduce((a,b)=>a+b,0); return ex.map(v=>v/s); }); }
+  function transpose(A){ return A[0].map((_,j)=>A.map(row=>row[j])); }
+  function elMulSub(A,B){ return A.map((row,i)=>row.map((v,j)=>v-B[i][j])); }
+  function scaleMat(A,s){ return A.map(row=>row.map(v=>v*s)); }
+  function sumRows(A){ const m=A[0].length; const out=new Array(m).fill(0);
+    A.forEach(row=>row.forEach((v,j)=>out[j]+=v)); return out; }
+  function elMulAB(A,B){ return A.map((row,i)=>row.map((v,j)=>v*B[i][j])); }
+
+  function initParams(nIn,nHidden,nOut,rng){
+    const he1 = Math.sqrt(2/nIn), he2 = Math.sqrt(2/nHidden);
+    return {
+      W1: Array.from({length:nIn},()=>Array.from({length:nHidden},()=>gaussian(rng)*he1)),
+      b1: new Array(nHidden).fill(0),
+      W2: Array.from({length:nHidden},()=>Array.from({length:nOut},()=>gaussian(rng)*he2)),
+      b2: new Array(nOut).fill(0),
+    };
+  }
+  function forward(p, X){
+    const z1 = addBias(matmul(X,p.W1), p.b1);
+    const a1 = relu(z1);
+    const z2 = addBias(matmul(a1,p.W2), p.b2);
+    const a2 = softmaxRows(z2);
+    return { a2, cache:{X,z1,a1,a2} };
+  }
+  function backward(p, cache, Y){
+    const m = cache.X.length;
+    const dz2 = scaleMat(elMulSub(cache.a2, Y), 1/m);
+    const dW2 = matmul(transpose(cache.a1), dz2);
+    const db2 = sumRows(dz2);
+    const da1 = matmul(dz2, transpose(p.W2));
+    const dz1 = elMulAB(da1, reluGrad(cache.z1));
+    const dW1 = matmul(transpose(cache.X), dz1);
+    const db1 = sumRows(dz1);
+    return { W1:dW1, b1:db1, W2:dW2, b2:db2 };
+  }
+  function crossEntropy(a2, Y){
+    let s=0; for(let i=0;i<a2.length;i++) for(let j=0;j<a2[0].length;j++) if(Y[i][j]) s += -Math.log(Math.max(a2[i][j],1e-12));
+    return s/a2.length;
+  }
+  function accuracyOf(p, X, y){
+    const {a2} = forward(p,X); let correct=0;
+    a2.forEach((row,i)=>{ const pred = row.indexOf(Math.max(...row)); if(pred===y[i]) correct++; });
+    return correct/X.length;
+  }
+
+  // ---- optimizers (mirror the Python SGD / AdaGrad / Adam exactly) ----
+  function paramKeys(){ return ['W1','b1','W2','b2']; }
+  function updateInPlace(p, grads, fn){
+    paramKeys().forEach(k=>{
+      if(Array.isArray(p[k][0])){
+        for(let i=0;i<p[k].length;i++) for(let j=0;j<p[k][i].length;j++) p[k][i][j] = fn(k,p[k][i][j], grads[k][i][j], i, j);
+      } else {
+        for(let i=0;i<p[k].length;i++) p[k][i] = fn(k,p[k][i], grads[k][i], i, -1);
+      }
+    });
+  }
+  class SGDOpt{
+    constructor(lr){ this.lr=lr; }
+    step(p,g){ updateInPlace(p,g,(k,w,gr)=> w - this.lr*gr); }
+  }
+  class AdaGradOpt{
+    constructor(lr,eps=1e-8){ this.lr=lr; this.eps=eps; this.G=null; }
+    step(p,g){
+      if(!this.G) this.G = { W1:zeros(p.W1.length,p.W1[0].length), b1:new Array(p.b1.length).fill(0),
+        W2:zeros(p.W2.length,p.W2[0].length), b2:new Array(p.b2.length).fill(0) };
+      updateInPlace(p,g,(k,w,gr,i,j)=>{
+        const acc = j>=0 ? (this.G[k][i][j]+=gr*gr) : (this.G[k][i]+=gr*gr);
+        return w - this.lr*gr/(Math.sqrt(acc)+this.eps);
+      });
+    }
+  }
+  class AdamOpt{
+    constructor(lr,b1=0.9,b2=0.999,eps=1e-8){ this.lr=lr; this.b1=b1; this.b2=b2; this.eps=eps; this.t=0; this.m=null; this.v=null; }
+    step(p,g){
+      if(!this.m){
+        this.m = { W1:zeros(p.W1.length,p.W1[0].length), b1:new Array(p.b1.length).fill(0),
+          W2:zeros(p.W2.length,p.W2[0].length), b2:new Array(p.b2.length).fill(0) };
+        this.v = { W1:zeros(p.W1.length,p.W1[0].length), b1:new Array(p.b1.length).fill(0),
+          W2:zeros(p.W2.length,p.W2[0].length), b2:new Array(p.b2.length).fill(0) };
+      }
+      this.t++;
+      const bc1 = 1-Math.pow(this.b1,this.t), bc2 = 1-Math.pow(this.b2,this.t);
+      updateInPlace(p,g,(k,w,gr,i,j)=>{
+        let mv, vv;
+        if(j>=0){
+          this.m[k][i][j] = this.b1*this.m[k][i][j] + (1-this.b1)*gr;
+          this.v[k][i][j] = this.b2*this.v[k][i][j] + (1-this.b2)*gr*gr;
+          mv=this.m[k][i][j]; vv=this.v[k][i][j];
+        } else {
+          this.m[k][i] = this.b1*this.m[k][i] + (1-this.b1)*gr;
+          this.v[k][i] = this.b2*this.v[k][i] + (1-this.b2)*gr*gr;
+          mv=this.m[k][i]; vv=this.v[k][i];
+        }
+        const mhat = mv/bc1, vhat = vv/bc2;
+        return w - this.lr*mhat/(Math.sqrt(vhat)+this.eps);
+      });
+    }
+  }
+
+  function trainRace(name, opt, Xtr, Ytr, ytr, Xte, Yte, nIn, nHidden, nOut, epochs, batch, seed, threshold){
+    const t0 = performance.now();
+    const rng = mulberry32(seed + name.length*97);
+    let params = initParams(nIn, nHidden, nOut, rng);
+    const n = Xtr.length;
+    const yteIdx = yte_of(Yte);
+    const losses = [], testLosses = [], testAccs = [];
+    let epochsToThreshold = null;
+    for(let e=0;e<epochs;e++){
+      const order = Xtr.map((_,i)=>i);
+      for(let i=order.length-1;i>0;i--){ const j=Math.floor(rng()*(i+1)); [order[i],order[j]]=[order[j],order[i]]; }
+      for(let s=0;s<n;s+=batch){
+        const idx = order.slice(s,s+batch);
+        const xb = idx.map(i=>Xtr[i]), yb = idx.map(i=>Ytr[i]);
+        const {a2,cache} = forward(params, xb);
+        const grads = backward(params, cache, yb);
+        opt.step(params, grads);
+      }
+      const {a2:trainPred} = forward(params, Xtr);
+      const trainLoss = crossEntropy(trainPred, Ytr);
+      losses.push(trainLoss);
+      if(epochsToThreshold===null && trainLoss<=threshold) epochsToThreshold = e+1;
+      const {a2:testPred} = forward(params, Xte);
+      testLosses.push(crossEntropy(testPred, Yte));
+      testAccs.push(accuracyOf(params, Xte, yteIdx));
+    }
+    const timeMs = performance.now() - t0;
+    return { params, losses, testLosses, testAccs,
+      finalTrainLoss: losses[losses.length-1], finalTestLoss: testLosses[testLosses.length-1],
+      testAcc: testAccs[testAccs.length-1], epochsToThreshold, timeMs };
+  }
+  function yte_of(Y){ return Y.map(row=>row.indexOf(1)); }
+
+  // ---- UI wiring ----
+  const DATASETS = { linear: dsLinear, xor: dsXOR, moons: dsMoons, spiral: dsSpiral };
+  const NAMES = ['SGD','AdaGrad','Adam'];
+  const LAB_COLORS = { SGD: 'var(--sgd)', AdaGrad: 'var(--adagrad)', Adam: 'var(--adam)' };
+  function labColor(n){ return getComputedStyle(document.documentElement).getPropertyValue(LAB_COLORS[n].match(/--[\w-]+/)[0]).trim(); }
+  const CLASS_PALETTE = ['#e0484f','#2f7bdb','#e3b23c'];
+  const LAB_THRESHOLD = 0.3;
+
+  let labLossChart = null, labAccChart = null;
+
+  const el = id => document.getElementById(id);
+  el('labEpochs').addEventListener('input', ()=> el('epochsVal').textContent = el('labEpochs').value);
+  el('labBatch').addEventListener('input', ()=> el('batchVal').textContent = el('labBatch').value);
+  el('labHidden').addEventListener('input', ()=> el('hiddenVal').textContent = el('labHidden').value);
+
+  el('resetBtn').addEventListener('click', ()=>{
+    el('labDataset').value='moons'; el('lrSGD').value=0.6; el('lrAdaGrad').value=0.8; el('lrAdam').value=0.05;
+    el('labEpochs').value=120; el('epochsVal').textContent=120;
+    el('labBatch').value=16; el('batchVal').textContent=16;
+    el('labHidden').value=16; el('hiddenVal').textContent=16;
+    el('labSeed').value=7;
+    el('labStatus').textContent = 'Reset to defaults. Press Run race.';
+  });
+
+  el('runBtn').addEventListener('click', runRace);
+
+  function runRace(){
+    const btn = el('runBtn');
+    btn.disabled = true; btn.textContent = 'Training…';
+    el('labStatus').textContent = 'Generating data and training three optimizers from scratch…';
+    // yield to paint before the (synchronous but fast) training loop
+    setTimeout(()=>{
+      try{
+        const dsKey = el('labDataset').value;
+        const seed = parseInt(el('labSeed').value,10) || 1;
+        const epochs = parseInt(el('labEpochs').value,10);
+        const batch = parseInt(el('labBatch').value,10);
+        const hidden = parseInt(el('labHidden').value,10);
+        const lrs = { SGD: parseFloat(el('lrSGD').value), AdaGrad: parseFloat(el('lrAdaGrad').value), Adam: parseFloat(el('lrAdam').value) };
+
+        const rngData = mulberry32(seed);
+        const raw = DATASETS[dsKey](rngData);
+        const split = shuffleSplit(raw.X, raw.y, mulberry32(seed+1));
+        const Ytr = oneHot(split.ytr, raw.classes), Yte = oneHot(split.yte, raw.classes);
+
+        const makers = { SGD:()=>new SGDOpt(lrs.SGD), AdaGrad:()=>new AdaGradOpt(lrs.AdaGrad), Adam:()=>new AdamOpt(lrs.Adam) };
+        const results = {};
+        NAMES.forEach(name=>{
+          results[name] = trainRace(name, makers[name](), split.Xtr, Ytr, split.ytr, split.Xte, Yte, 2, hidden, raw.classes, epochs, batch, seed, LAB_THRESHOLD);
+        });
+
+        el('labEmpty').hidden = true;
+        el('labResults').hidden = false;
+
+        if(labLossChart) labLossChart.destroy();
+        if(labAccChart) labAccChart.destroy();
+        const grid = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
+        const fg = getComputedStyle(document.documentElement).getPropertyValue('--fg-muted').trim();
+        const panelBg = getComputedStyle(document.documentElement).getPropertyValue('--panel').trim();
+        const fgStrong = getComputedStyle(document.documentElement).getPropertyValue('--fg').trim();
+        const tipOpts = { backgroundColor: panelBg, titleColor: fgStrong, bodyColor: fgStrong, borderColor: grid, borderWidth:1, padding:8 };
+        labLossChart = new Chart(el('labLossChart'), {
+          type:'line',
+          data:{ labels: Array.from({length:epochs},(_,i)=>i+1),
+            datasets: NAMES.map(n=>({ label:n, data:results[n].losses, borderColor: labColor(n), backgroundColor:'transparent', borderWidth:2.2, pointRadius:0, tension:.15 })) },
+          options:{ responsive:true, maintainAspectRatio:false,
+            plugins:{ legend:{position:'bottom', labels:{color:fg, font:{family:'IBM Plex Mono',size:11}}}, tooltip:tipOpts },
+            scales:{ x:{title:{display:true,text:'Epoch',color:fg,font:{family:'IBM Plex Mono',size:11}}, grid:{color:grid}, ticks:{color:fg,font:{size:10}}},
+                     y:{title:{display:true,text:'Training loss',color:fg,font:{family:'IBM Plex Mono',size:11}}, grid:{color:grid}, ticks:{color:fg,font:{size:10}}} } }
+        });
+        labAccChart = new Chart(el('labAccChart'), {
+          type:'line',
+          data:{ labels: Array.from({length:epochs},(_,i)=>i+1),
+            datasets: NAMES.map(n=>({ label:n, data:results[n].testAccs.map(v=>v*100), borderColor: labColor(n), backgroundColor:'transparent', borderWidth:2.2, pointRadius:0, tension:.15 })) },
+          options:{ responsive:true, maintainAspectRatio:false,
+            plugins:{ legend:{position:'bottom', labels:{color:fg, font:{family:'IBM Plex Mono',size:11}}}, tooltip:tipOpts },
+            scales:{ x:{title:{display:true,text:'Epoch',color:fg,font:{family:'IBM Plex Mono',size:11}}, grid:{color:grid}, ticks:{color:fg,font:{size:10}}},
+                     y:{title:{display:true,text:'Test accuracy (%)',color:fg,font:{family:'IBM Plex Mono',size:11}}, grid:{color:grid}, ticks:{color:fg,font:{size:10}}} } }
+        });
+
+        drawBoundaries(results, raw, split, dsKey);
+        buildLabTable(results);
+        el('labStatus').textContent = `Done — ${epochs} epochs × ${NAMES.length} optimizers on ${split.Xtr.length} training points (${dsKey}).`;
+      } catch(err){
+        el('labStatus').textContent = 'Error: ' + err.message;
+        console.error(err);
+      } finally {
+        btn.disabled = false; btn.textContent = '▶ Run race';
+      }
+    }, 30);
+  }
+
+  function buildLabTable(results){
+    const cols = [
+      {k:'testAcc', label:'Test accuracy', fmt:v=>(v*100).toFixed(2)+'%', max:true},
+      {k:'finalTestLoss', label:'Test loss', fmt:v=>v.toFixed(4), max:false},
+      {k:'finalTrainLoss', label:'Train loss', fmt:v=>v<0.01?v.toExponential(2):v.toFixed(4), max:false},
+      {k:'epochsToThreshold', label:`Epochs to ≤${LAB_THRESHOLD}`, fmt:v=>v??'—', max:false},
+      {k:'timeMs', label:'Time (ms)', fmt:v=>v.toFixed(0), max:false},
+    ];
+    const bestPer = {};
+    cols.forEach(c=>{
+      const vals = NAMES.map(n=>results[n][c.k]);
+      bestPer[c.k] = c.max ? NAMES[vals.indexOf(Math.max(...vals))] : NAMES[vals.indexOf(Math.min(...vals))];
+    });
+    const thead = `<thead><tr><th>Optimizer</th>${cols.map(c=>`<th class="num">${c.label}</th>`).join('')}</tr></thead>`;
+    const rows = NAMES.map(n=>{
+      const r = results[n];
+      return `<tr><td><span class="dot" style="background:${labColor(n)}"></span>${n}</td>${
+        cols.map(c=>`<td class="num ${bestPer[c.k]===n?'win':''}">${c.fmt(r[c.k])}</td>`).join('')
+      }</tr>`;
+    }).join('');
+    el('labResultsTable').innerHTML = thead + `<tbody>${rows}</tbody>`;
+  }
+
+  function drawBoundaries(results, raw, split, dsKey){
+    const host = el('boundaryGrid');
+    host.innerHTML = NAMES.map(n=>{
+      const r = results[n];
+      return `
+      <div class="boundary-card">
+        <h4><span class="dot" style="background:${labColor(n)}"></span>${n}</h4>
+        <div class="acc">
+          Test accuracy: <b>${(r.testAcc*100).toFixed(1)}%</b><br>
+          Final train loss: <b>${r.finalTrainLoss<0.01 ? r.finalTrainLoss.toExponential(2) : r.finalTrainLoss.toFixed(4)}</b><br>
+          Epochs to loss ≤ ${LAB_THRESHOLD}: <b>${r.epochsToThreshold ?? '—'}</b> &middot; Time: <b>${r.timeMs.toFixed(0)}ms</b>
+        </div>
+        <canvas id="bnd_${n}" width="160" height="160"></canvas>
+      </div>`;
+    }).join('');
+
+    const allX = raw.X;
+    const xs = allX.map(p=>p[0]), ys = allX.map(p=>p[1]);
+    const pad = 0.6;
+    const xMin = Math.min(...xs)-pad, xMax = Math.max(...xs)+pad;
+    const yMin = Math.min(...ys)-pad, yMax = Math.max(...ys)+pad;
+    const res = 56;
+
+    NAMES.forEach(n=>{
+      const canvas = el('bnd_'+n);
+      const ctx = canvas.getContext('2d');
+      const W = canvas.width, H = canvas.height;
+      const img = ctx.createImageData(W,H);
+      // build grid points at res x res, map to canvas pixel blocks
+      const gridPts = [];
+      for(let gy=0; gy<res; gy++) for(let gx=0; gx<res; gx++){
+        const x = xMin + (gx/(res-1))*(xMax-xMin);
+        const y = yMax - (gy/(res-1))*(yMax-yMin);
+        gridPts.push([x,y]);
+      }
+      const {a2} = forward(results[n].params, gridPts);
+      const classOf = a2.map(row=>row.indexOf(Math.max(...row)));
+      const cellW = W/res, cellH = H/res;
+      for(let gy=0; gy<res; gy++) for(let gx=0; gx<res; gx++){
+        const cls = classOf[gy*res+gx];
+        const hex = CLASS_PALETTE[cls] || '#999';
+        const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+        const x0 = Math.floor(gx*cellW), x1 = Math.floor((gx+1)*cellW);
+        const y0 = Math.floor(gy*cellH), y1 = Math.floor((gy+1)*cellH);
+        for(let py=y0; py<y1; py++) for(let px=x0; px<x1; px++){
+          const idx = (py*W+px)*4;
+          img.data[idx]=r; img.data[idx+1]=g; img.data[idx+2]=b; img.data[idx+3]=130;
+        }
+      }
+      ctx.putImageData(img,0,0);
+      // overlay test points
+      split.Xte.forEach((p,i)=>{
+        const cx = ((p[0]-xMin)/(xMax-xMin))*W;
+        const cy = H - ((p[1]-yMin)/(yMax-yMin))*H;
+        ctx.beginPath();
+        ctx.fillStyle = CLASS_PALETTE[split.yte[i]] || '#999';
+        ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1;
+        ctx.arc(cx,cy,3,0,Math.PI*2); ctx.fill(); ctx.stroke();
+      });
+    });
+  }
+})();
+</script>
+
+<script>
+/* ===================== Top menu: theme / help / about ===================== */
+(function(){
+  const $ = id => document.getElementById(id);
+
+  // ---- theme ----
+  function currentTheme(){
+    const explicit = document.documentElement.getAttribute('data-theme');
+    if(explicit) return explicit;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  function applyThemeLabel(){
+    const t = currentTheme();
+    $('themeIcon').innerHTML = t === 'dark' ? '&#9728;' : '&#9790;';
+    $('themeLabel').textContent = t === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
+  }
+  function setTheme(t){
+    document.documentElement.setAttribute('data-theme', t);
+    try{ localStorage.setItem('optirace-theme', t); }catch(e){}
+    applyThemeLabel();
+    if(typeof rebuildAll === 'function') rebuildAll();
+  }
+  (function initTheme(){
+    try{
+      const saved = localStorage.getItem('optirace-theme');
+      if(saved === 'light' || saved === 'dark') document.documentElement.setAttribute('data-theme', saved);
+    }catch(e){}
+    applyThemeLabel();
+  })();
+  $('themeToggle').addEventListener('click', ()=> setTheme(currentTheme()==='dark' ? 'light' : 'dark'));
+
+  // ---- menu dropdown ----
+  function closeMenu(){ $('menuDropdown').hidden = true; $('menuBtn').setAttribute('aria-expanded','false'); }
+  $('menuBtn').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const willOpen = $('menuDropdown').hidden;
+    $('menuDropdown').hidden = !willOpen;
+    $('menuBtn').setAttribute('aria-expanded', String(willOpen));
+  });
+  document.addEventListener('click', (e)=>{ if(!$('menuDropdown').hidden && !$('menuDropdown').contains(e.target)) closeMenu(); });
+  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ closeMenu(); closeModal('helpOverlay'); closeModal('aboutOverlay'); } });
+
+  function openModal(id){ $(id).hidden = false; closeMenu(); }
+  function closeModal(id){ $(id).hidden = true; }
+  $('helpOverlay').addEventListener('click', (e)=>{ if(e.target.id==='helpOverlay') closeModal('helpOverlay'); });
+  $('aboutOverlay').addEventListener('click', (e)=>{ if(e.target.id==='aboutOverlay') closeModal('aboutOverlay'); });
+  $('closeHelp').addEventListener('click', ()=>closeModal('helpOverlay'));
+  $('closeAbout').addEventListener('click', ()=>closeModal('aboutOverlay'));
+
+  // ---- Help content: what every visual element on the page means ----
+  const concepts = [
+    { c:'var(--sgd)', t:'The three colours (red / blue / green)', d:'Every chart on this page uses the same three colours for the same optimizer: red for SGD, blue for AdaGrad, green for Adam. Once you know the colour, you can read any chart on the page without checking the legend.' },
+    { c:'var(--accent)', t:'KPI cards (the three boxes at the top)', d:'Each card is one optimizer’s final report card after training finishes: test accuracy (how many unseen digits it got right), final train loss (how well it fit the training data), how many epochs it needed before its loss first dropped below 0.3, and how long it took to train.' },
+    { c:'var(--sgd)', t:'The loss curve (“Convergence speed”)', d:'The x-axis is epoch (one full pass over the training data); the y-axis is the training loss (cross-entropy — how wrong the model’s predictions are, on average). A line that drops fast and low is an optimizer that learns quickly and fits the data well. A line that flattens out early, like AdaGrad’s, has essentially stopped learning.' },
+    { c:'var(--adam)', t:'The accuracy curve (“Generalisation”)', d:'This shows the same three optimizers, but measured on data the network never trained on (the test set). A model can have a very low training loss and still generalise badly, so this chart is the more honest measure of how good the model actually is.' },
+    { c:'var(--adagrad)', t:'The three small bar charts (“Final comparison”)', d:'Each bar chart uses its own scale on purpose — accuracy, loss and time are measured in completely different units, so putting them on one shared scale would make the smallest bars invisible.' },
+    { c:'var(--accent)', t:'The network diagram (“Network under test”)', d:'Each dot is one unit (one neuron) in that layer: 64 on the left for the input pixels, 32 in the middle hidden layer, 10 on the right, one per digit. The faint lines are the weighted connections between every unit and every unit in the next layer — these are exactly the numbers the optimizer is adjusting during training.' },
+    { c:'var(--sgd)', t:'Decision boundaries (Live Lab results)', d:'After you run the live lab, each small square shows the region of 2D space the trained network would assign to each class, coloured by class. The dots are the actual test points, coloured by their true class. Where a dot’s colour matches the region underneath it, the model classified that point correctly — so a messy, jagged boundary near the dots usually means lower accuracy, and a clean boundary that neatly separates the colours means the optimizer found a good solution.' },
+  ];
+  const controls = [
+    ['Learning rate', 'How big a step the optimizer takes on every update. Too high and training can bounce around or diverge (shown as spikes in the loss curve); too low and training barely moves within the epoch budget you gave it.'],
+    ['Epochs', 'How many full passes over the training data the network gets. More epochs give the optimizer more chances to improve, but also take longer and can eventually overfit.'],
+    ['Batch size', 'How many data points the optimizer looks at before each weight update. Small batches give noisier but more frequent updates; large batches give smoother but fewer updates per epoch.'],
+    ['Hidden units', 'How many neurons are in the network’s one hidden layer. More units let the network represent more complicated boundaries, but also make it slower to train and easier to overfit on a small dataset.'],
+    ['Random seed', 'Fixes the starting point — the initial random weights and the order data is shuffled in — so that a run can be repeated exactly. Changing it gives SGD, AdaGrad and Adam a different (but identical-to-each-other) starting point to race from.'],
+  ];
+  $('helpBody').innerHTML =
+    '<p style="font-size:12.5px;color:var(--fg-muted);margin:0 0 14px;">A quick guide to every dot, line and colour on this page — and what each Live Lab control actually does.</p>' +
+    concepts.map(c => `<div class="concept-item"><h4><span class="swatch" style="background:${c.c}"></span>${c.t}</h4><p>${c.d}</p></div>`).join('') +
+    '<div class="concept-item" style="border-top:2px solid var(--border);margin-top:4px;padding-top:16px;"><h4>Live Lab controls</h4></div>' +
+    controls.map(([n,d]) => `<div class="concept-item"><h4>${n}</h4><p>${d}</p></div>`).join('');
+
+  // ---- About content: Q&A ----
+  const qa = [
+    ['What is OptiMetrics?', 'A mini project for the 24AM501 Deep Learning course. It implements three optimization algorithms — SGD, AdaGrad and Adam — entirely from scratch (no PyTorch or TensorFlow optimizer classes), trains the same neural network with each one under identical conditions, and shows the results on this dashboard.'],
+    ['What are SGD, AdaGrad and Adam, in one line each?', 'SGD (Stochastic Gradient Descent) moves every weight by a fixed step in the direction that reduces the loss. AdaGrad gives each weight its own learning rate that automatically shrinks the more that weight has already moved. Adam keeps a running average of both the gradient and its square for every weight, and uses that to adapt both the direction and the step size.'],
+    ['Why compare them instead of just using Adam?', 'Adam is the common default, but it is not always the best or cheapest choice. This project measures, rather than assumes, how much faster Adam converges, how much extra time and memory it costs per step, and where plain SGD or AdaGrad are still competitive.'],
+    ['What exactly was benchmarked?', 'A two-layer network (64 input units → 32 ReLU hidden units → 10 softmax output units) trained on the scikit-learn handwritten-digits dataset, for 60 epochs, with all three optimizers starting from the same random weights and seeing the same batches in the same order.'],
+    ['What is the difference between the top section and the Live Lab?', 'The “Benchmark run” section shows one experiment, computed in Python with NumPy ahead of time, on the digits dataset. The “Live Lab” section runs the same three optimizers again, from scratch, but written in JavaScript so it executes directly in your browser — you choose the dataset and the hyperparameters, and it trains in front of you, in well under a second.'],
+    ['Is the Live Lab training real, or just an animation?', 'It is a real training run. The JavaScript implements the same forward pass, backward pass and optimizer update rules as the Python benchmark, with no pre-computed or faked numbers — changing the learning rate or dataset genuinely changes the result.'],
+    ['Why do the three optimizers sometimes finish with different accuracy on the exact same data?', 'Because the only thing that differs between the three runs is the update rule itself — same starting weights, same batches, same epoch budget. Any gap in the final result is therefore coming from the optimizer, not from a lucky or unlucky initialisation.'],
+  ];
+  $('aboutBody').innerHTML = qa.map(([q,a]) => `<div class="qa-item"><div class="q">${q}</div><p class="a">${a}</p></div>`).join('');
+
+  $('openHelp').addEventListener('click', ()=>openModal('helpOverlay'));
+  $('openAbout').addEventListener('click', ()=>openModal('aboutOverlay'));
+})();
+</script>
